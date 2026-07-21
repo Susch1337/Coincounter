@@ -143,6 +143,7 @@
       findBtn=document.getElementById('findBtn'), resHint=document.getElementById('resHint');
 
   var stream=null, rawImageData=null, cvReady=false, mmPerPx=null;
+  var mode='find', lastCard=null, coins=[];
 
   function setStatus(t,k){ statusTxt.textContent=t; dot.className='dot'+(k?' '+k:''); }
   function show(el){ el.classList.remove('hidden'); }
@@ -210,7 +211,7 @@
     shot.width=w; shot.height=h;
     var ctx=shot.getContext('2d');
     ctx.drawImage(video,0,0,w,h);
-    rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null;
+    rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null; mode='find'; lastCard=null;
     video.classList.remove('on'); shot.classList.add('on'); reticle.classList.remove('on');
     hide(shutterBtn); show(retakeBtn); show(findBtn); readout.classList.remove('on');
     refreshFindBtn();
@@ -218,7 +219,7 @@
     resHint.textContent=w+'\u00d7'+h+' px captured'; show(resHint);
   }
   function retake(){
-    rawImageData=null; mmPerPx=null;
+    rawImageData=null; mmPerPx=null; mode='find'; lastCard=null;
     shot.classList.remove('on'); video.classList.add('on'); reticle.classList.add('on');
     hide(retakeBtn); hide(findBtn); readout.classList.remove('on'); show(shutterBtn);
     setStatus('Live \u00b7 rear camera','live');
@@ -231,11 +232,17 @@
     findBtn.textContent=cvReady?'Find card':'Loading vision\u2026';
   }
 
-  function findCardClicked(){
+  function onPrimary(){
     if(!cvReady||!rawImageData) return;
-    findBtn.disabled=true; findBtn.textContent='Detecting\u2026';
-    setStatus('Detecting card\u2026','busy');
-    setTimeout(runDetection,40);
+    if(mode==='measure'){
+      findBtn.disabled=true; findBtn.textContent='Measuring\u2026';
+      setStatus('Measuring coins\u2026','busy');
+      setTimeout(runCoinDetection,40);
+    } else {
+      findBtn.disabled=true; findBtn.textContent='Detecting\u2026';
+      setStatus('Detecting card\u2026','busy');
+      setTimeout(runDetection,40);
+    }
   }
 
   function runDetection(){
@@ -275,8 +282,9 @@
     }
     src.delete(); gray.delete(); blur.delete(); edges.delete();
     kernel.delete(); contours.delete(); hierarchy.delete();
-    if(!best) showNoCard(); else showCard(best);
-    findBtn.disabled=false; findBtn.textContent='Re-detect';
+    findBtn.disabled=false;
+    if(!best){ lastCard=null; mode='find'; findBtn.textContent='Re-detect'; showNoCard(); }
+    else{ lastCard=best; mode='measure'; findBtn.textContent='Measure coins'; showCard(best); }
   }
 
   function showCard(c){
@@ -306,11 +314,93 @@
     for(var j=0;j<pts.length;j++){ ctx.beginPath(); ctx.arc(pts[j].x,pts[j].y,lw*1.8,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
   }
 
+  /* ---------------- Coin detection (Stage 3) ---------------- */
+  function runCoinDetection(){
+    if(mmPerPx==null){ findBtn.disabled=false; findBtn.textContent='Find card'; mode='find'; setStatus('Find the card first','err'); return; }
+    var ctx=shot.getContext('2d');
+    ctx.putImageData(rawImageData,0,0);
+    if(lastCard) drawOverlay(lastCard.pts);
+
+    var src=cv.matFromImageData(rawImageData);
+    var gray=new cv.Mat();
+    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+    cv.medianBlur(gray,gray,5);
+
+    var circles=new cv.Mat();
+    var minR=Math.round((15/2)/mmPerPx);   // ~1c, with margin
+    var maxR=Math.round((27/2)/mmPerPx);   // ~2 euro, with margin
+    var minDist=Math.max(10, Math.round(minR*1.4));
+    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,35,minR,maxR);
+
+    coins=[];
+    for(var i=0;i<circles.cols;i++){
+      var x=circles.data32F[i*3], y=circles.data32F[i*3+1], r=circles.data32F[i*3+2];
+      if(lastCard && pointInPoly(x,y,lastCard.pts)) continue;  // ignore graphics on the card
+      coins.push({x:x,y:y,r:r,d:2*r*mmPerPx});
+    }
+    circles.delete(); src.delete(); gray.delete();
+
+    drawCoins(coins);
+    showCoins(coins);
+    findBtn.disabled=false; findBtn.textContent='Re-measure';
+  }
+
+  function pointInPoly(x,y,poly){
+    var inside=false;
+    for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+      var xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    return inside;
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawCoins(list){
+    var ctx=shot.getContext('2d');
+    var lw=Math.max(3, shot.width/300);
+    var fs=Math.max(20, Math.round(shot.width/38));
+    ctx.font='600 '+fs+'px ui-monospace,Menlo,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(var i=0;i<list.length;i++){
+      var c=list[i];
+      ctx.strokeStyle='#4FE3A6'; ctx.lineWidth=lw;
+      ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.stroke();
+      var label=c.d.toFixed(1);
+      var tw=ctx.measureText(label).width;
+      ctx.fillStyle='rgba(16,21,28,.82)';
+      roundRect(ctx, c.x-tw/2-8, c.y-fs/2-5, tw+16, fs+10, 7); ctx.fill();
+      ctx.fillStyle='#EEF2F7';
+      ctx.fillText(label, c.x, c.y);
+    }
+  }
+
+  function showCoins(list){
+    if(list.length===0){
+      readoutMain.innerHTML='<span class="bad">!</span>No coins detected';
+      readoutSub.textContent='Spread the coins apart on a plain surface, keep them sharp and evenly lit, then Re-measure. Scale '+mmPerPx.toFixed(4)+' mm/px.';
+      readout.classList.add('on'); setStatus('No coins found','err'); return;
+    }
+    var ds=list.map(function(c){return c.d;});
+    var lo=Math.min.apply(null,ds), hi=Math.max.apply(null,ds);
+    readoutMain.innerHTML='<span class="tick">\u2713</span>'+list.length+' coin'+(list.length>1?'s':'')+' measured';
+    readoutSub.textContent='\u00d8 '+lo.toFixed(1)+'\u2013'+hi.toFixed(1)+' mm  \u00b7  scale '+mmPerPx.toFixed(4)+' mm/px';
+    readout.classList.add('on'); setStatus(list.length+' coins measured','');
+  }
+
   startBtn.addEventListener('click',startCamera);
   retryBtn.addEventListener('click',startCamera);
   shutterBtn.addEventListener('click',capture);
   retakeBtn.addEventListener('click',retake);
-  findBtn.addEventListener('click',findCardClicked);
+  findBtn.addEventListener('click',onPrimary);
 
   setStatus((window.cv&&cv.Mat)?'Ready':'Loading vision engine\u2026',(window.cv&&cv.Mat)?'':'busy');
 })();
