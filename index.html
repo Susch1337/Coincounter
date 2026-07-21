@@ -92,7 +92,7 @@
 <body>
 
   <header>
-    <div class="wordmark">COIN<b>&middot;</b>METER <span class="ver" id="ver">v9</span></div>
+    <div class="wordmark">COIN<b>&middot;</b>METER <span class="ver" id="ver">v10</span></div>
     <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Starting up&hellip;</span></div>
   </header>
 
@@ -113,6 +113,7 @@
       <h1>Photograph your coins</h1>
       <p>Spread the coins on a plain surface and lay a bank card flat in the frame for scale. Then start the camera.</p>
       <button class="btn" id="startBtn">Start camera</button>
+      <button class="btn ghost" id="uploadBtn">Upload a photo</button>
     </div>
 
     <div class="panel error hidden" id="errorPanel">
@@ -122,8 +123,11 @@
       <h1 id="errorTitle">Camera unavailable</h1>
       <p id="errorText"></p>
       <button class="btn ghost" id="retryBtn">Try again</button>
+      <button class="btn ghost" id="uploadBtn2">Upload a photo instead</button>
     </div>
   </main>
+
+  <input type="file" accept="image/*" id="fileInput" style="display:none">
 
   <div class="tuner hidden" id="tuner">
     <div class="tuner-row"><span class="tuner-label">Detection threshold</span><span class="tuner-val" id="tunerVal">34</span></div>
@@ -156,10 +160,11 @@
       shutterBtn=document.getElementById('shutterBtn'), retakeBtn=document.getElementById('retakeBtn'),
       findBtn=document.getElementById('findBtn'), resHint=document.getElementById('resHint');
   var tuner=document.getElementById('tuner'), thresh=document.getElementById('thresh'), tunerVal=document.getElementById('tunerVal');
+  var fileInput=document.getElementById('fileInput'), uploadBtn=document.getElementById('uploadBtn'), uploadBtn2=document.getElementById('uploadBtn2');
 
   var stream=null, rawImageData=null, cvReady=false, mmPerPx=null;
   var mode='find', lastCard=null, coins=[];
-  var VERSION=9, coinParam2=34, threshTimer=null;
+  var VERSION=10, coinParam2=34, threshTimer=null, sourceMode='camera';
 
   function setStatus(t,k){ statusTxt.textContent=t; dot.className='dot'+(k?' '+k:''); }
   function show(el){ el.classList.remove('hidden'); }
@@ -222,19 +227,47 @@
   }
   function stopCamera(){ if(stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; } video.srcObject=null; }
 
+  function enterCaptured(){
+    video.classList.remove('on'); reticle.classList.remove('on'); shot.classList.add('on');
+    hide(startPanel); hide(errorPanel);
+    hide(shutterBtn); show(retakeBtn); show(findBtn);
+    readout.classList.remove('on'); tuner.classList.add('hidden');
+    mmPerPx=null; mode='find'; lastCard=null;
+    refreshFindBtn();
+    setStatus('Photo ready','');
+    resHint.textContent=shot.width+'\u00d7'+shot.height+' px'; show(resHint);
+  }
   function capture(){
     var w=video.videoWidth, h=video.videoHeight; if(!w||!h) return;
     shot.width=w; shot.height=h;
-    var ctx=shot.getContext('2d');
-    ctx.drawImage(video,0,0,w,h);
-    rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null; mode='find'; lastCard=null;
-    video.classList.remove('on'); shot.classList.add('on'); reticle.classList.remove('on');
-    hide(shutterBtn); show(retakeBtn); show(findBtn); readout.classList.remove('on'); tuner.classList.add('hidden');
-    refreshFindBtn();
-    setStatus('Photo captured','');
-    resHint.textContent=w+'\u00d7'+h+' px captured'; show(resHint);
+    var ctx=shot.getContext('2d'); ctx.drawImage(video,0,0,w,h);
+    rawImageData=ctx.getImageData(0,0,w,h);
+    sourceMode='camera';
+    enterCaptured();
+  }
+  function openFilePicker(){ fileInput.value=''; fileInput.click(); }
+  function loadViaImg(file){
+    return new Promise(function(res,rej){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=rej; im.src=URL.createObjectURL(file); });
+  }
+  async function loadFile(file){
+    if(!file) return;
+    setStatus('Loading photo\u2026','busy');
+    var bmp=null;
+    try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }
+    catch(e){ try{ bmp=await loadViaImg(file); }catch(e2){ setStatus('Could not open image','err'); return; } }
+    var W=bmp.width||bmp.naturalWidth, H=bmp.height||bmp.naturalHeight;
+    var MAX=2560, sc=Math.min(1, MAX/Math.max(W,H));
+    var tw=Math.max(1,Math.round(W*sc)), th=Math.max(1,Math.round(H*sc));
+    shot.width=tw; shot.height=th;
+    var ctx=shot.getContext('2d'); ctx.drawImage(bmp,0,0,tw,th);
+    if(bmp.close) bmp.close();
+    rawImageData=ctx.getImageData(0,0,tw,th);
+    sourceMode='upload';
+    stopCamera();
+    enterCaptured();
   }
   function retake(){
+    if(sourceMode==='upload'){ openFilePicker(); return; }
     rawImageData=null; mmPerPx=null; mode='find'; lastCard=null;
     shot.classList.remove('on'); video.classList.add('on'); reticle.classList.add('on');
     hide(retakeBtn); hide(findBtn); readout.classList.remove('on'); show(shutterBtn); tuner.classList.add('hidden');
@@ -541,6 +574,9 @@
   shutterBtn.addEventListener('click',capture);
   retakeBtn.addEventListener('click',retake);
   findBtn.addEventListener('click',onPrimary);
+  uploadBtn.addEventListener('click',openFilePicker);
+  uploadBtn2.addEventListener('click',openFilePicker);
+  fileInput.addEventListener('change',function(){ var f=this.files&&this.files[0]; this.value=''; if(f) loadFile(f); });
   thresh.addEventListener('input',function(){
     coinParam2=parseInt(thresh.value,10);
     tunerVal.textContent=coinParam2;
