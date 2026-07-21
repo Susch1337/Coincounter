@@ -30,6 +30,7 @@
   header{ flex:0 0 auto; padding:14px 20px 10px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
   .wordmark{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-weight:600; letter-spacing:.14em; font-size:15px; color:var(--text); }
   .wordmark b{ color:var(--gold); font-weight:600; }
+  .ver{ color:var(--gold-dim); font-size:11px; letter-spacing:.08em; margin-left:6px; }
   .status{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; letter-spacing:.06em; color:var(--muted); display:flex; align-items:center; gap:7px; white-space:nowrap; }
   .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
   .dot.live{ background:var(--ok); animation:pulse 1.8s infinite; }
@@ -77,6 +78,13 @@
   .btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
   .btn.ghost:active{ background:var(--surface-2); }
 
+  .tuner{ flex:0 0 auto; padding:6px 24px 0; }
+  .tuner.hidden{ display:none; }
+  .tuner-row{ display:flex; justify-content:space-between; align-items:baseline; font-family:ui-monospace,Menlo,monospace; }
+  .tuner-label{ font-size:12px; letter-spacing:.08em; color:var(--muted); }
+  .tuner-val{ font-size:13px; color:var(--gold); font-weight:600; }
+  input[type=range]{ width:100%; accent-color:var(--gold); margin:7px 0 3px; height:26px; }
+  .tuner-hint{ font-family:ui-monospace,Menlo,monospace; font-size:10px; color:var(--muted); text-align:center; letter-spacing:.04em; }
   .hidden{ display:none !important; }
   .hint{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:10.5px; letter-spacing:.05em; color:var(--muted); pointer-events:none; }
 </style>
@@ -84,7 +92,7 @@
 <body>
 
   <header>
-    <div class="wordmark">COIN<b>&middot;</b>METER</div>
+    <div class="wordmark">COIN<b>&middot;</b>METER <span class="ver" id="ver">v8</span></div>
     <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Starting up&hellip;</span></div>
   </header>
 
@@ -117,6 +125,12 @@
     </div>
   </main>
 
+  <div class="tuner hidden" id="tuner">
+    <div class="tuner-row"><span class="tuner-label">Detection threshold</span><span class="tuner-val" id="tunerVal">34</span></div>
+    <input type="range" id="thresh" min="18" max="60" value="34" step="1">
+    <div class="tuner-hint">lower = more coins &middot; higher = stricter</div>
+  </div>
+
   <section class="controls" id="controls">
     <button class="shutter hidden" id="shutterBtn" aria-label="Capture photo"></button>
     <button class="btn ghost hidden" id="retakeBtn">Retake</button>
@@ -141,9 +155,11 @@
       startBtn=document.getElementById('startBtn'), retryBtn=document.getElementById('retryBtn'),
       shutterBtn=document.getElementById('shutterBtn'), retakeBtn=document.getElementById('retakeBtn'),
       findBtn=document.getElementById('findBtn'), resHint=document.getElementById('resHint');
+  var tuner=document.getElementById('tuner'), thresh=document.getElementById('thresh'), tunerVal=document.getElementById('tunerVal');
 
   var stream=null, rawImageData=null, cvReady=false, mmPerPx=null;
   var mode='find', lastCard=null, coins=[];
+  var VERSION=8, coinParam2=34, threshTimer=null;
 
   function setStatus(t,k){ statusTxt.textContent=t; dot.className='dot'+(k?' '+k:''); }
   function show(el){ el.classList.remove('hidden'); }
@@ -179,7 +195,7 @@
     video.srcObject=stream;
     try{ await video.play(); }catch(e){}
     video.classList.add('on'); reticle.classList.add('on');
-    show(shutterBtn); hide(retakeBtn); hide(findBtn); mmPerPx=null;
+    show(shutterBtn); hide(retakeBtn); hide(findBtn); mmPerPx=null; tuner.classList.add('hidden');
     var tr=stream.getVideoTracks()[0], s=(tr&&tr.getSettings)?tr.getSettings():{};
     setStatus('Live \u00b7 rear camera','live');
     if(s.width&&s.height){ resHint.textContent=s.width+'\u00d7'+s.height+' px'; show(resHint); }
@@ -201,7 +217,7 @@
     errorTitle.textContent=title; errorText.innerHTML=html;
     show(errorPanel); hide(startPanel); readout.classList.remove('on');
     video.classList.remove('on'); reticle.classList.remove('on');
-    hide(shutterBtn); hide(retakeBtn); hide(findBtn); hide(resHint);
+    hide(shutterBtn); hide(retakeBtn); hide(findBtn); hide(resHint); tuner.classList.add('hidden');
     setStatus('Error','err');
   }
   function stopCamera(){ if(stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; } video.srcObject=null; }
@@ -213,7 +229,7 @@
     ctx.drawImage(video,0,0,w,h);
     rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null; mode='find'; lastCard=null;
     video.classList.remove('on'); shot.classList.add('on'); reticle.classList.remove('on');
-    hide(shutterBtn); show(retakeBtn); show(findBtn); readout.classList.remove('on');
+    hide(shutterBtn); show(retakeBtn); show(findBtn); readout.classList.remove('on'); tuner.classList.add('hidden');
     refreshFindBtn();
     setStatus('Photo captured','');
     resHint.textContent=w+'\u00d7'+h+' px captured'; show(resHint);
@@ -221,7 +237,7 @@
   function retake(){
     rawImageData=null; mmPerPx=null; mode='find'; lastCard=null;
     shot.classList.remove('on'); video.classList.add('on'); reticle.classList.add('on');
-    hide(retakeBtn); hide(findBtn); readout.classList.remove('on'); show(shutterBtn);
+    hide(retakeBtn); hide(findBtn); readout.classList.remove('on'); show(shutterBtn); tuner.classList.add('hidden');
     setStatus('Live \u00b7 rear camera','live');
     var tr=stream&&stream.getVideoTracks()[0], s=(tr&&tr.getSettings)?tr.getSettings():{};
     if(s.width&&s.height) resHint.textContent=s.width+'\u00d7'+s.height+' px';
@@ -284,7 +300,7 @@
     kernel.delete(); contours.delete(); hierarchy.delete();
     findBtn.disabled=false;
     if(!best){ lastCard=null; mode='find'; findBtn.textContent='Re-detect'; showNoCard(); }
-    else{ lastCard=best; mode='measure'; findBtn.textContent='Measure coins'; showCard(best); }
+    else{ lastCard=best; mode='measure'; findBtn.textContent='Measure coins'; tuner.classList.remove('hidden'); showCard(best); }
   }
 
   function showCard(c){
@@ -332,7 +348,7 @@
     var maxR=Math.round((28/2)/mmPerPx);   // ~2 euro plus margin
     var minDist=Math.max(10, Math.round(minR*1.3));
     // param2 lowered (35 -> 28) to catch low-contrast copper coins on wood
-    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,31,minR,maxR);
+    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,coinParam2,minR,maxR);
 
     var H = lastCard && lastCard.H;
     var W=src.cols, Hei=src.rows;
@@ -465,6 +481,17 @@
   shutterBtn.addEventListener('click',capture);
   retakeBtn.addEventListener('click',retake);
   findBtn.addEventListener('click',onPrimary);
+  thresh.addEventListener('input',function(){
+    coinParam2=parseInt(thresh.value,10);
+    tunerVal.textContent=coinParam2;
+    if(mode==='measure' && rawImageData){
+      clearTimeout(threshTimer);
+      threshTimer=setTimeout(function(){ runCoinDetection(); },140);
+    }
+  });
+  thresh.value=coinParam2; tunerVal.textContent=coinParam2;
+  var _v=document.getElementById('ver'); if(_v) _v.textContent='v'+VERSION;
+  try{ console.log('Coin Meter v'+VERSION); }catch(e){}
 
   setStatus((window.cv&&cv.Mat)?'Ready':'Loading vision engine\u2026',(window.cv&&cv.Mat)?'':'busy');
 })();
