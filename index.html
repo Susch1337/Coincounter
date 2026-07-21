@@ -332,15 +332,29 @@
     var maxR=Math.round((28/2)/mmPerPx);   // ~2 euro plus margin
     var minDist=Math.max(10, Math.round(minR*1.3));
     // param2 lowered (35 -> 28) to catch low-contrast copper coins on wood
-    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,28,minR,maxR);
+    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,31,minR,maxR);
 
     var H = lastCard && lastCard.H;
-    coins=[];
-    for(var i=0;i<circles.cols;i++){
+    var W=src.cols, Hei=src.rows;
+    var cand=[];
+    for(var i=0;i<circles.cols;i++){                          // Hough returns strongest first
       var x=circles.data32F[i*3], y=circles.data32F[i*3+1], r=circles.data32F[i*3+2];
-      if(lastCard && pointInPoly(x,y,lastCard.pts)) continue;  // ignore graphics on the card
+      if(x<0||y<0||x>=W||y>=Hei) continue;
+      if(lastCard && pointInPoly(x,y,lastCard.pts)) continue;  // on the card
       var d = H ? coinDiameterMM(H,x,y,r) : 2*r*mmPerPx;       // homography -> real mm
-      coins.push({x:x,y:y,r:r,d:d});
+      if(d<15 || d>27) continue;                               // outside the euro size range
+      if(meanLuma(rawImageData,x,y,r) < 50) continue;          // dark cable / deep shadow, not a coin
+      cand.push({x:x,y:y,r:r,d:d});
+    }
+    // non-maximum suppression: collapse overlapping duplicates, keep the strongest
+    coins=[];
+    for(var a=0;a<cand.length;a++){
+      var c=cand[a], ov=false;
+      for(var b=0;b<coins.length;b++){
+        var k=coins[b];
+        if(Math.hypot(c.x-k.x,c.y-k.y) < 0.6*(c.r+k.r)){ ov=true; break; }
+      }
+      if(!ov) coins.push(c);
     }
     circles.delete(); src.delete(); gray.delete();
 
@@ -381,6 +395,18 @@
     var sum=0;
     for(var i=0;i<4;i++){ var q=applyH(H,e[i][0],e[i][1]); var dx=q[0]-c[0], dy=q[1]-c[1]; sum+=Math.sqrt(dx*dx+dy*dy); }
     return 2*sum/4;
+  }
+  function meanLuma(img,cx,cy,r){
+    var w=img.width, h=img.height, d=img.data;
+    var offs=[[0,0],[0.5,0],[-0.5,0],[0,0.5],[0,-0.5],[0.35,0.35],[-0.35,0.35],[0.35,-0.35],[-0.35,-0.35]];
+    var sum=0,n=0;
+    for(var i=0;i<offs.length;i++){
+      var px=Math.round(cx+offs[i][0]*r), py=Math.round(cy+offs[i][1]*r);
+      if(px<0||py<0||px>=w||py>=h) continue;
+      var idx=(py*w+px)*4;
+      sum += 0.299*d[idx]+0.587*d[idx+1]+0.114*d[idx+2]; n++;
+    }
+    return n ? sum/n : 0;
   }
 
   function pointInPoly(x,y,poly){
