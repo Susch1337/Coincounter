@@ -165,7 +165,7 @@
               .catch(function(){ setStatus('Vision engine failed','err'); });
 
   async function startCamera(){
-    hide(errorPanel); hide(startPanel); hide(readout);
+    hide(errorPanel); hide(startPanel); readout.classList.remove('on');
     setStatus('Starting\u2026','busy');
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       return showError('Not supported','This browser can\u2019t open the camera. Open the page in Safari on your iPhone.');
@@ -198,7 +198,7 @@
   function showError(title,html){
     stopCamera();
     errorTitle.textContent=title; errorText.innerHTML=html;
-    show(errorPanel); hide(startPanel); hide(readout);
+    show(errorPanel); hide(startPanel); readout.classList.remove('on');
     video.classList.remove('on'); reticle.classList.remove('on');
     hide(shutterBtn); hide(retakeBtn); hide(findBtn); hide(resHint);
     setStatus('Error','err');
@@ -212,7 +212,7 @@
     ctx.drawImage(video,0,0,w,h);
     rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null;
     video.classList.remove('on'); shot.classList.add('on'); reticle.classList.remove('on');
-    hide(shutterBtn); show(retakeBtn); show(findBtn); hide(readout);
+    hide(shutterBtn); show(retakeBtn); show(findBtn); readout.classList.remove('on');
     refreshFindBtn();
     setStatus('Photo captured','');
     resHint.textContent=w+'\u00d7'+h+' px captured'; show(resHint);
@@ -220,7 +220,7 @@
   function retake(){
     rawImageData=null; mmPerPx=null;
     shot.classList.remove('on'); video.classList.add('on'); reticle.classList.add('on');
-    hide(retakeBtn); hide(findBtn); hide(readout); show(shutterBtn);
+    hide(retakeBtn); hide(findBtn); readout.classList.remove('on'); show(shutterBtn);
     setStatus('Live \u00b7 rear camera','live');
     var tr=stream&&stream.getVideoTracks()[0], s=(tr&&tr.getSettings)?tr.getSettings():{};
     if(s.width&&s.height) resHint.textContent=s.width+'\u00d7'+s.height+' px';
@@ -287,13 +287,13 @@
     var good=agreement>0.94;
     readoutMain.innerHTML='<span class="'+(good?'tick':'bad')+'">'+(good?'\u2713':'!')+'</span>Card found \u00b7 '+mmPerPx.toFixed(4)+' mm/px';
     readoutSub.textContent='long '+Math.round(c.lng)+'px\u2192'+CARD_LONG+'mm  \u00b7  short '+Math.round(c.sht)+'px\u2192'+CARD_SHORT+'mm  \u00b7  agree '+Math.round(agreement*100)+'%';
-    show(readout); setStatus('Scale locked','');
+    readout.classList.add('on'); setStatus('Scale locked','');
   }
   function showNoCard(){
     mmPerPx=null;
     readoutMain.innerHTML='<span class="bad">!</span>No card detected';
     readoutSub.textContent='Show the whole card, flat, with clear edges against a plain, contrasting surface. Then Re-detect.';
-    show(readout); setStatus('No card found','err');
+    readout.classList.add('on'); setStatus('No card found','err');
   }
   function drawOverlay(pts){
     var ctx=shot.getContext('2d');
