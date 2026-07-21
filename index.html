@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-<!-- Add-to-home-screen / standalone web app -->
 <title>Coin Meter</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,235 +14,102 @@
 
 <style>
   :root{
-    --bg:#10151C;
-    --surface:#1A212B;
-    --surface-2:#232C38;
-    --line:#2E3947;
-    --gold:#E6B450;
-    --gold-dim:#A88536;
-    --euro:#2F6BFF;
-    --text:#EEF2F7;
-    --muted:#8B95A5;
-    --danger:#FF7A7A;
-    --ok:#5FD08A;
+    --bg:#10151C; --surface:#1A212B; --surface-2:#232C38; --line:#2E3947;
+    --gold:#E6B450; --gold-dim:#A88536; --euro:#2F6BFF;
+    --text:#EEF2F7; --muted:#8B95A5; --danger:#FF7A7A; --ok:#5FD08A;
   }
-
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
   html,body{ height:100%; margin:0; }
-
   body{
-    background:var(--bg);
-    color:var(--text);
+    background:var(--bg); color:var(--text);
     font-family:-apple-system,"SF Pro Text",system-ui,Segoe UI,Roboto,sans-serif;
-    display:flex;
-    flex-direction:column;
-    /* safe areas for notch + home indicator */
-    padding:env(safe-area-inset-top) env(safe-area-inset-right)
-            env(safe-area-inset-bottom) env(safe-area-inset-left);
-    overflow:hidden;
-    height:100dvh;
+    display:flex; flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overflow:hidden; height:100dvh;
   }
-
-  /* ---------- Header ---------- */
-  header{
-    flex:0 0 auto;
-    padding:14px 20px 10px;
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    gap:12px;
-  }
-  .wordmark{
-    font-family:ui-monospace,"SF Mono",Menlo,monospace;
-    font-weight:600;
-    letter-spacing:.14em;
-    font-size:15px;
-    color:var(--text);
-  }
+  header{ flex:0 0 auto; padding:14px 20px 10px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .wordmark{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-weight:600; letter-spacing:.14em; font-size:15px; color:var(--text); }
   .wordmark b{ color:var(--gold); font-weight:600; }
-  .status{
-    font-family:ui-monospace,"SF Mono",Menlo,monospace;
-    font-size:11px;
-    letter-spacing:.06em;
-    color:var(--muted);
-    display:flex;
-    align-items:center;
-    gap:7px;
-    white-space:nowrap;
-  }
-  .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); }
-  .dot.live{ background:var(--ok); box-shadow:0 0 0 0 rgba(95,208,138,.6); animation:pulse 1.8s infinite; }
+  .status{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; letter-spacing:.06em; color:var(--muted); display:flex; align-items:center; gap:7px; white-space:nowrap; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
+  .dot.live{ background:var(--ok); animation:pulse 1.8s infinite; }
+  .dot.busy{ background:var(--gold); animation:pulse 1.1s infinite; }
   .dot.err{ background:var(--danger); }
-  @keyframes pulse{
-    0%{ box-shadow:0 0 0 0 rgba(95,208,138,.5); }
-    70%{ box-shadow:0 0 0 6px rgba(95,208,138,0); }
-    100%{ box-shadow:0 0 0 0 rgba(95,208,138,0); }
-  }
+  @keyframes pulse{ 0%{ box-shadow:0 0 0 0 rgba(230,180,80,.5);} 70%{ box-shadow:0 0 0 6px rgba(230,180,80,0);} 100%{ box-shadow:0 0 0 0 rgba(230,180,80,0);} }
 
-  /* ---------- Stage / viewport ---------- */
-  .stage{
-    flex:1 1 auto;
-    position:relative;
-    margin:4px 16px 8px;
-    border-radius:20px;
-    overflow:hidden;
-    background:#000;
-    border:1px solid var(--line);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  video, .shot{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    display:none;
-  }
+  .stage{ flex:1 1 auto; position:relative; margin:4px 16px 8px; border-radius:20px; overflow:hidden; background:#000; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+  video, .shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:none; }
   video.on, .shot.on{ display:block; }
 
-  /* Signature: caliper-style viewfinder ticks */
-  .reticle{
-    position:absolute; inset:0;
-    pointer-events:none;
-    display:none;
-  }
+  .reticle{ position:absolute; inset:0; pointer-events:none; display:none; }
   .reticle.on{ display:block; }
-  .reticle span{
-    position:absolute; width:26px; height:26px;
-    border:2px solid rgba(230,180,80,.85);
-  }
+  .reticle span{ position:absolute; width:26px; height:26px; border:2px solid rgba(230,180,80,.85); }
   .reticle .tl{ top:14px; left:14px; border-right:0; border-bottom:0; border-radius:6px 0 0 0; }
   .reticle .tr{ top:14px; right:14px; border-left:0; border-bottom:0; border-radius:0 6px 0 0; }
   .reticle .bl{ bottom:14px; left:14px; border-right:0; border-top:0; border-radius:0 0 0 6px; }
   .reticle .br{ bottom:14px; right:14px; border-left:0; border-top:0; border-radius:0 0 6px 0; }
 
-  /* Idle / message panel over the stage */
-  .panel{
-    position:relative;
-    z-index:2;
-    max-width:300px;
-    margin:auto;
-    text-align:center;
-    padding:26px 22px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:14px;
-  }
+  .panel{ position:relative; z-index:2; max-width:300px; margin:auto; text-align:center; padding:26px 22px; display:flex; flex-direction:column; align-items:center; gap:14px; }
   .panel.hidden{ display:none; }
-  .glyph{
-    width:56px; height:56px; border-radius:50%;
-    border:2px solid var(--gold);
-    display:flex; align-items:center; justify-content:center;
-    color:var(--gold);
-  }
+  .glyph{ width:56px; height:56px; border-radius:50%; border:2px solid var(--gold); display:flex; align-items:center; justify-content:center; color:var(--gold); }
   .panel h1{ font-size:17px; margin:0; font-weight:600; letter-spacing:-.01em; }
   .panel p{ font-size:13.5px; line-height:1.5; color:var(--muted); margin:0; }
-  .panel p code{
-    font-family:ui-monospace,"SF Mono",Menlo,monospace;
-    color:var(--gold); font-size:12.5px;
-  }
+  .panel p code{ font-family:ui-monospace,"SF Mono",Menlo,monospace; color:var(--gold); font-size:12.5px; }
   .panel.error .glyph{ border-color:var(--danger); color:var(--danger); }
 
-  /* ---------- Controls ---------- */
-  .controls{
-    flex:0 0 auto;
-    padding:10px 20px calc(14px + env(safe-area-inset-bottom));
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:22px;
-    min-height:104px;
-  }
+  .readout{ position:absolute; left:12px; right:12px; bottom:12px; z-index:3; background:rgba(16,21,28,.86); border:1px solid var(--line); border-radius:14px; padding:11px 14px; display:none; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .readout.on{ display:block; }
+  .readout .r1{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:14px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .readout .r1 .tick{ color:var(--ok); }
+  .readout .r1 .bad{ color:var(--danger); }
+  .readout .r2{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; color:var(--muted); margin-top:4px; line-height:1.5; }
 
-  /* round shutter */
-  .shutter{
-    width:74px; height:74px; border-radius:50%;
-    border:0; padding:0; background:transparent; cursor:pointer;
-    display:flex; align-items:center; justify-content:center;
-    position:relative;
-  }
-  .shutter::before{
-    content:""; position:absolute; inset:0;
-    border-radius:50%; border:3px solid var(--gold);
-  }
-  .shutter::after{
-    content:""; width:56px; height:56px; border-radius:50%;
-    background:var(--gold);
-    transition:transform .08s ease, background .15s ease;
-  }
+  .controls{ flex:0 0 auto; padding:10px 20px calc(14px + env(safe-area-inset-bottom)); display:flex; align-items:center; justify-content:center; gap:18px; min-height:104px; position:relative; }
+  .shutter{ width:74px; height:74px; border-radius:50%; border:0; padding:0; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; position:relative; }
+  .shutter::before{ content:""; position:absolute; inset:0; border-radius:50%; border:3px solid var(--gold); }
+  .shutter::after{ content:""; width:56px; height:56px; border-radius:50%; background:var(--gold); transition:transform .08s ease, background .15s ease; }
   .shutter:active::after{ transform:scale(.88); background:var(--gold-dim); }
   .shutter[disabled]{ opacity:.4; pointer-events:none; }
 
-  /* pill buttons for start / retake / use */
-  .btn{
-    font-family:-apple-system,system-ui,sans-serif;
-    font-size:15px; font-weight:600;
-    color:var(--bg); background:var(--gold);
-    border:0; border-radius:999px;
-    padding:14px 26px; cursor:pointer;
-    letter-spacing:.01em;
-  }
+  .btn{ font-family:-apple-system,system-ui,sans-serif; font-size:15px; font-weight:600; color:var(--bg); background:var(--gold); border:0; border-radius:999px; padding:14px 24px; cursor:pointer; letter-spacing:.01em; }
   .btn:active{ background:var(--gold-dim); }
-  .btn.ghost{
-    background:transparent; color:var(--text);
-    border:1px solid var(--line);
-  }
+  .btn[disabled]{ opacity:.5; pointer-events:none; }
+  .btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
   .btn.ghost:active{ background:var(--surface-2); }
 
   .hidden{ display:none !important; }
-
-  /* small caption under controls */
-  .hint{
-    position:absolute; bottom:6px; left:0; right:0;
-    text-align:center;
-    font-family:ui-monospace,"SF Mono",Menlo,monospace;
-    font-size:10.5px; letter-spacing:.05em; color:var(--muted);
-    pointer-events:none;
-  }
+  .hint{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:10.5px; letter-spacing:.05em; color:var(--muted); pointer-events:none; }
 </style>
 </head>
 <body>
 
   <header>
-    <div class="wordmark">COIN<b>·</b>METER</div>
-    <div class="status" id="status">
-      <span class="dot" id="dot"></span>
-      <span id="statusText">Camera off</span>
-    </div>
+    <div class="wordmark">COIN<b>&middot;</b>METER</div>
+    <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Starting up&hellip;</span></div>
   </header>
 
   <main class="stage">
     <video id="video" playsinline autoplay muted></video>
     <canvas id="shot" class="shot"></canvas>
-    <div class="reticle" id="reticle">
-      <span class="tl"></span><span class="tr"></span>
-      <span class="bl"></span><span class="br"></span>
+    <div class="reticle" id="reticle"><span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="br"></span></div>
+
+    <div class="readout" id="readout">
+      <div class="r1" id="readoutMain"></div>
+      <div class="r2" id="readoutSub"></div>
     </div>
 
-    <!-- Idle / start -->
     <div class="panel" id="startPanel">
       <div class="glyph">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
       <h1>Photograph your coins</h1>
-      <p>Spread the coins on a plain surface and lay a bank card in the frame for scale. Then start the camera.</p>
+      <p>Spread the coins on a plain surface and lay a bank card flat in the frame for scale. Then start the camera.</p>
       <button class="btn" id="startBtn">Start camera</button>
     </div>
 
-    <!-- Error -->
     <div class="panel error hidden" id="errorPanel">
       <div class="glyph">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
       <h1 id="errorTitle">Camera unavailable</h1>
       <p id="errorText"></p>
@@ -252,13 +118,9 @@
   </main>
 
   <section class="controls" id="controls">
-    <!-- shutter shown when live -->
     <button class="shutter hidden" id="shutterBtn" aria-label="Capture photo"></button>
-
-    <!-- after capture -->
     <button class="btn ghost hidden" id="retakeBtn">Retake</button>
-    <button class="btn hidden" id="useBtn">Use photo</button>
-
+    <button class="btn hidden" id="findBtn">Find card</button>
     <div class="hint hidden" id="resHint"></div>
   </section>
 
@@ -266,180 +128,189 @@
 (function(){
   "use strict";
 
-  const video    = document.getElementById('video');
-  const shot     = document.getElementById('shot');
-  const reticle  = document.getElementById('reticle');
-  const dot      = document.getElementById('dot');
-  const statusTxt= document.getElementById('statusText');
+  var CARD_LONG = 85.60, CARD_SHORT = 53.98;
+  var OPENCV_URL = "https://docs.opencv.org/4.x/opencv.js";
 
-  const startPanel = document.getElementById('startPanel');
-  const errorPanel = document.getElementById('errorPanel');
-  const errorTitle = document.getElementById('errorTitle');
-  const errorText  = document.getElementById('errorText');
+  var video=document.getElementById('video'), shot=document.getElementById('shot'),
+      reticle=document.getElementById('reticle'), dot=document.getElementById('dot'),
+      statusTxt=document.getElementById('statusText'),
+      readout=document.getElementById('readout'), readoutMain=document.getElementById('readoutMain'),
+      readoutSub=document.getElementById('readoutSub'),
+      startPanel=document.getElementById('startPanel'), errorPanel=document.getElementById('errorPanel'),
+      errorTitle=document.getElementById('errorTitle'), errorText=document.getElementById('errorText'),
+      startBtn=document.getElementById('startBtn'), retryBtn=document.getElementById('retryBtn'),
+      shutterBtn=document.getElementById('shutterBtn'), retakeBtn=document.getElementById('retakeBtn'),
+      findBtn=document.getElementById('findBtn'), resHint=document.getElementById('resHint');
 
-  const startBtn   = document.getElementById('startBtn');
-  const retryBtn   = document.getElementById('retryBtn');
-  const shutterBtn = document.getElementById('shutterBtn');
-  const retakeBtn  = document.getElementById('retakeBtn');
-  const useBtn     = document.getElementById('useBtn');
-  const resHint    = document.getElementById('resHint');
+  var stream=null, rawImageData=null, cvReady=false, mmPerPx=null;
 
-  let stream = null;
-  let captured = null; // { width, height } of last capture
-
-  function setStatus(text, kind){ // kind: 'off' | 'live' | 'err' | 'shot'
-    statusTxt.textContent = text;
-    dot.className = 'dot' + (kind === 'live' ? ' live' : kind === 'err' ? ' err' : '');
-  }
-
+  function setStatus(t,k){ statusTxt.textContent=t; dot.className='dot'+(k?' '+k:''); }
   function show(el){ el.classList.remove('hidden'); }
   function hide(el){ el.classList.add('hidden'); }
 
-  // ---- Start the camera ----
+  function loadOpenCV(){
+    return new Promise(function(resolve,reject){
+      if(window.cv && cv.Mat) return resolve();
+      var s=document.createElement('script');
+      s.src=OPENCV_URL; s.async=true;
+      s.onerror=function(){ reject(new Error('network')); };
+      s.onload=function(){
+        if(window.cv && cv.Mat) return resolve();
+        cv['onRuntimeInitialized']=function(){ resolve(); };
+      };
+      document.head.appendChild(s);
+    });
+  }
+  loadOpenCV().then(function(){ cvReady=true; if(!stream) setStatus('Ready',''); refreshFindBtn(); })
+              .catch(function(){ setStatus('Vision engine failed','err'); });
+
   async function startCamera(){
-    hide(errorPanel);
-    hide(startPanel);
-    setStatus('Starting…', 'off');
-
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      return showError('Not supported',
-        'This browser can\u2019t open the camera. Open the page in Safari on your iPhone.');
-    }
-
-    // Camera needs a secure context (https) except on localhost.
-    if(!window.isSecureContext){
-      return showError('Needs a secure connection',
-        'The camera only works over <code>https</code>. Host this file (e.g. GitHub Pages) and open it there.');
-    }
-
+    hide(errorPanel); hide(startPanel); hide(readout);
+    setStatus('Starting\u2026','busy');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      return showError('Not supported','This browser can\u2019t open the camera. Open the page in Safari on your iPhone.');
+    if(!window.isSecureContext)
+      return showError('Needs a secure connection','The camera only works over <code>https</code>. Open the hosted (GitHub Pages) URL.');
     try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio:false,
-        video:{
-          facingMode:{ ideal:'environment' },   // rear camera
-          width:{ ideal:1920 },
-          height:{ ideal:1080 }
-        }
-      });
-    }catch(err){
-      return handleCameraError(err);
-    }
-
-    video.srcObject = stream;
-    try{ await video.play(); }catch(e){ /* iOS resolves on metadata */ }
-
-    video.classList.add('on');
-    reticle.classList.add('on');
-    show(shutterBtn);
-    hide(retakeBtn); hide(useBtn);
-
-    const track = stream.getVideoTracks()[0];
-    const s = track ? track.getSettings() : {};
-    setStatus('Live \u00b7 rear camera', 'live');
-    if(s.width && s.height){
-      resHint.textContent = s.width + '\u00d7' + s.height + ' px';
-      show(resHint);
-    }
+      stream=await navigator.mediaDevices.getUserMedia({ audio:false,
+        video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } } });
+    }catch(err){ return handleCameraError(err); }
+    video.srcObject=stream;
+    try{ await video.play(); }catch(e){}
+    video.classList.add('on'); reticle.classList.add('on');
+    show(shutterBtn); hide(retakeBtn); hide(findBtn); mmPerPx=null;
+    var tr=stream.getVideoTracks()[0], s=(tr&&tr.getSettings)?tr.getSettings():{};
+    setStatus('Live \u00b7 rear camera','live');
+    if(s.width&&s.height){ resHint.textContent=s.width+'\u00d7'+s.height+' px'; show(resHint); }
   }
 
   function handleCameraError(err){
-    const name = err && err.name ? err.name : '';
-    if(name === 'NotAllowedError' || name === 'SecurityError'){
-      showError('Camera permission needed',
-        'Allow camera access, then tap Try again. On iPhone: Settings \u203a your browser \u203a Camera.');
-    }else if(name === 'NotFoundError' || name === 'OverconstrainedError'){
-      showError('No camera found',
-        'No rear camera was available. Try again or use a device with a camera.');
-    }else if(name === 'NotReadableError'){
-      showError('Camera is busy',
-        'Another app may be using the camera. Close it and tap Try again.');
-    }else{
-      showError('Camera unavailable', (err && err.message) ? err.message : 'Unknown error.');
-    }
+    var n=err&&err.name;
+    if(n==='NotAllowedError'||n==='SecurityError')
+      showError('Camera permission needed','Allow camera access, then tap Try again. On iPhone: Settings \u203a your browser \u203a Camera.');
+    else if(n==='NotFoundError'||n==='OverconstrainedError')
+      showError('No camera found','No rear camera was available.');
+    else if(n==='NotReadableError')
+      showError('Camera is busy','Another app may be using the camera. Close it and tap Try again.');
+    else showError('Camera unavailable',(err&&err.message)||'Unknown error.');
   }
 
-  function showError(title, htmlText){
+  function showError(title,html){
     stopCamera();
-    errorTitle.textContent = title;
-    errorText.innerHTML = htmlText;
-    show(errorPanel);
-    hide(startPanel);
-    video.classList.remove('on');
-    reticle.classList.remove('on');
-    hide(shutterBtn); hide(retakeBtn); hide(useBtn); hide(resHint);
-    setStatus('Error', 'err');
+    errorTitle.textContent=title; errorText.innerHTML=html;
+    show(errorPanel); hide(startPanel); hide(readout);
+    video.classList.remove('on'); reticle.classList.remove('on');
+    hide(shutterBtn); hide(retakeBtn); hide(findBtn); hide(resHint);
+    setStatus('Error','err');
   }
+  function stopCamera(){ if(stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; } video.srcObject=null; }
 
-  function stopCamera(){
-    if(stream){
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
-    video.srcObject = null;
-  }
-
-  // ---- Capture a still at full sensor resolution ----
   function capture(){
-    const w = video.videoWidth, h = video.videoHeight;
-    if(!w || !h) return;
-
-    shot.width = w;
-    shot.height = h;
-    const ctx = shot.getContext('2d');
-    ctx.drawImage(video, 0, 0, w, h);
-    captured = { width:w, height:h };
-
-    // Freeze: hide live video, show the still. Keep the stream running
-    // so Retake is instant.
-    video.classList.remove('on');
-    shot.classList.add('on');
-    reticle.classList.remove('on');
-
-    hide(shutterBtn);
-    show(retakeBtn);
-    show(useBtn);
-    setStatus('Photo captured', 'off');
-    resHint.textContent = w + '\u00d7' + h + ' px captured';
-    show(resHint);
+    var w=video.videoWidth, h=video.videoHeight; if(!w||!h) return;
+    shot.width=w; shot.height=h;
+    var ctx=shot.getContext('2d');
+    ctx.drawImage(video,0,0,w,h);
+    rawImageData=ctx.getImageData(0,0,w,h); mmPerPx=null;
+    video.classList.remove('on'); shot.classList.add('on'); reticle.classList.remove('on');
+    hide(shutterBtn); show(retakeBtn); show(findBtn); hide(readout);
+    refreshFindBtn();
+    setStatus('Photo captured','');
+    resHint.textContent=w+'\u00d7'+h+' px captured'; show(resHint);
   }
-
   function retake(){
-    captured = null;
-    shot.classList.remove('on');
-    video.classList.add('on');
-    reticle.classList.add('on');
-    hide(retakeBtn); hide(useBtn);
-    show(shutterBtn);
-    setStatus('Live \u00b7 rear camera', 'live');
-    const track = stream && stream.getVideoTracks()[0];
-    const s = track ? track.getSettings() : {};
-    if(s.width && s.height) resHint.textContent = s.width + '\u00d7' + s.height + ' px';
+    rawImageData=null; mmPerPx=null;
+    shot.classList.remove('on'); video.classList.add('on'); reticle.classList.add('on');
+    hide(retakeBtn); hide(findBtn); hide(readout); show(shutterBtn);
+    setStatus('Live \u00b7 rear camera','live');
+    var tr=stream&&stream.getVideoTracks()[0], s=(tr&&tr.getSettings)?tr.getSettings():{};
+    if(s.width&&s.height) resHint.textContent=s.width+'\u00d7'+s.height+' px';
+  }
+  function refreshFindBtn(){
+    if(!rawImageData) return;
+    findBtn.disabled=!cvReady;
+    findBtn.textContent=cvReady?'Find card':'Loading vision\u2026';
   }
 
-  // Stage 1: "Use photo" just confirms we have the pixels.
-  // Later stages will hand `shot` (the canvas) to OpenCV here.
-  function usePhoto(){
-    if(!captured) return;
-    setStatus('Photo ready \u00b7 ' + captured.width + '\u00d7' + captured.height, 'off');
-    useBtn.textContent = 'Ready \u2713';
-    useBtn.disabled = true;
-    setTimeout(() => { useBtn.textContent = 'Use photo'; useBtn.disabled = false; }, 1400);
+  function findCardClicked(){
+    if(!cvReady||!rawImageData) return;
+    findBtn.disabled=true; findBtn.textContent='Detecting\u2026';
+    setStatus('Detecting card\u2026','busy');
+    setTimeout(runDetection,40);
   }
 
-  // ---- Wire up ----
-  startBtn.addEventListener('click', startCamera);
-  retryBtn.addEventListener('click', startCamera);
-  shutterBtn.addEventListener('click', capture);
-  retakeBtn.addEventListener('click', retake);
-  useBtn.addEventListener('click', usePhoto);
+  function runDetection(){
+    var ctx=shot.getContext('2d');
+    ctx.putImageData(rawImageData,0,0);
+    var src=cv.matFromImageData(rawImageData);
+    var gray=new cv.Mat(), blur=new cv.Mat(), edges=new cv.Mat();
+    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
+    cv.Canny(blur,edges,50,150);
+    var kernel=cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,5));
+    cv.dilate(edges,edges,kernel);
+    var contours=new cv.MatVector(), hierarchy=new cv.Mat();
+    cv.findContours(edges,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+    var imgArea=src.rows*src.cols, best=null;
+    for(var i=0;i<contours.size();i++){
+      var cnt=contours.get(i);
+      var area=cv.contourArea(cnt);
+      if(area<imgArea*0.01){ cnt.delete(); continue; }
+      var peri=cv.arcLength(cnt,true);
+      var approx=new cv.Mat();
+      cv.approxPolyDP(cnt,approx,0.02*peri,true);
+      if(approx.rows===4 && cv.isContourConvex(approx)){
+        var rect=cv.minAreaRect(cnt);
+        var w=rect.size.width, h=rect.size.height;
+        var lng=Math.max(w,h), sht=Math.min(w,h);
+        var ratio=lng/sht, rectangularity=area/(w*h);
+        if(ratio>1.45 && ratio<1.75 && rectangularity>0.82){
+          if(!best || area>best.area){
+            var pts=[];
+            for(var k=0;k<4;k++) pts.push({x:approx.data32S[k*2], y:approx.data32S[k*2+1]});
+            best={area:area, lng:lng, sht:sht, ratio:ratio, rectangularity:rectangularity, pts:pts};
+          }
+        }
+      }
+      approx.delete(); cnt.delete();
+    }
+    src.delete(); gray.delete(); blur.delete(); edges.delete();
+    kernel.delete(); contours.delete(); hierarchy.delete();
+    if(!best) showNoCard(); else showCard(best);
+    findBtn.disabled=false; findBtn.textContent='Re-detect';
+  }
 
-  // Free the camera if the app is backgrounded (iOS reclaims it anyway).
-  document.addEventListener('visibilitychange', () => {
-    if(document.hidden && stream && !captured){ /* keep running for now */ }
-  });
+  function showCard(c){
+    var mmL=CARD_LONG/c.lng, mmS=CARD_SHORT/c.sht;
+    mmPerPx=(mmL+mmS)/2;
+    var agreement=1-Math.abs(mmL-mmS)/mmPerPx;
+    drawOverlay(c.pts);
+    var good=agreement>0.94;
+    readoutMain.innerHTML='<span class="'+(good?'tick':'bad')+'">'+(good?'\u2713':'!')+'</span>Card found \u00b7 '+mmPerPx.toFixed(4)+' mm/px';
+    readoutSub.textContent='long '+Math.round(c.lng)+'px\u2192'+CARD_LONG+'mm  \u00b7  short '+Math.round(c.sht)+'px\u2192'+CARD_SHORT+'mm  \u00b7  agree '+Math.round(agreement*100)+'%';
+    show(readout); setStatus('Scale locked','');
+  }
+  function showNoCard(){
+    mmPerPx=null;
+    readoutMain.innerHTML='<span class="bad">!</span>No card detected';
+    readoutSub.textContent='Show the whole card, flat, with clear edges against a plain, contrasting surface. Then Re-detect.';
+    show(readout); setStatus('No card found','err');
+  }
+  function drawOverlay(pts){
+    var ctx=shot.getContext('2d');
+    var lw=Math.max(3, shot.width/300);
+    ctx.lineJoin='round'; ctx.strokeStyle='#E6B450'; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    for(var i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.closePath(); ctx.stroke();
+    ctx.fillStyle='#10151C';
+    for(var j=0;j<pts.length;j++){ ctx.beginPath(); ctx.arc(pts[j].x,pts[j].y,lw*1.8,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  }
 
-  setStatus('Camera off', 'off');
+  startBtn.addEventListener('click',startCamera);
+  retryBtn.addEventListener('click',startCamera);
+  shutterBtn.addEventListener('click',capture);
+  retakeBtn.addEventListener('click',retake);
+  findBtn.addEventListener('click',findCardClicked);
+
+  setStatus((window.cv&&cv.Mat)?'Ready':'Loading vision engine\u2026',(window.cv&&cv.Mat)?'':'busy');
 })();
-</script>
-</body>
-</html>
