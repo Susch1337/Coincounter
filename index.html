@@ -92,7 +92,7 @@
 <body>
 
   <header>
-    <div class="wordmark">COIN<b>&middot;</b>METER <span class="ver" id="ver">v8</span></div>
+    <div class="wordmark">COIN<b>&middot;</b>METER <span class="ver" id="ver">v9</span></div>
     <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Starting up&hellip;</span></div>
   </header>
 
@@ -159,7 +159,7 @@
 
   var stream=null, rawImageData=null, cvReady=false, mmPerPx=null;
   var mode='find', lastCard=null, coins=[];
-  var VERSION=8, coinParam2=34, threshTimer=null;
+  var VERSION=9, coinParam2=34, threshTimer=null;
 
   function setStatus(t,k){ statusTxt.textContent=t; dot.className='dot'+(k?' '+k:''); }
   function show(el){ el.classList.remove('hidden'); }
@@ -372,6 +372,10 @@
       }
       if(!ov) coins.push(c);
     }
+    for(var ci=0;ci<coins.length;ci++){
+      coins[ci].color=sampleColorStats(rawImageData,coins[ci].x,coins[ci].y,coins[ci].r);
+      coins[ci].cls=classifyCoin(coins[ci].d,coins[ci].color);
+    }
     circles.delete(); src.delete(); gray.delete();
 
     drawCoins(coins);
@@ -444,36 +448,92 @@
     ctx.closePath();
   }
 
+  function famColor(f){ return f==='copper'?'#E0894C':f==='gold'?'#E6B450':f==='bimetal'?'#B9C2CE':'#4FE3A6'; }
   function drawCoins(list){
     var ctx=shot.getContext('2d');
     var lw=Math.max(3, shot.width/300);
-    var fs=Math.max(20, Math.round(shot.width/38));
-    ctx.font='600 '+fs+'px ui-monospace,Menlo,monospace';
+    var fs=Math.max(20, Math.round(shot.width/40));
+    var fs2=Math.round(fs*0.62);
     ctx.textAlign='center'; ctx.textBaseline='middle';
     for(var i=0;i<list.length;i++){
-      var c=list[i];
-      ctx.strokeStyle='#4FE3A6'; ctx.lineWidth=lw;
+      var c=list[i], col=famColor(c.cls?c.cls.family:'');
+      ctx.strokeStyle=col; ctx.lineWidth=lw;
       ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.stroke();
-      var label=c.d.toFixed(1);
-      var tw=ctx.measureText(label).width;
-      ctx.fillStyle='rgba(16,21,28,.82)';
-      roundRect(ctx, c.x-tw/2-8, c.y-fs/2-5, tw+16, fs+10, 7); ctx.fill();
-      ctx.fillStyle='#EEF2F7';
-      ctx.fillText(label, c.x, c.y);
+      var denom=c.cls?c.cls.l:'?', mm=c.d.toFixed(1);
+      ctx.font='700 '+fs+'px ui-monospace,Menlo,monospace'; var w1=ctx.measureText(denom).width;
+      ctx.font='500 '+fs2+'px ui-monospace,Menlo,monospace'; var w2=ctx.measureText(mm).width;
+      var pw=Math.max(w1,w2)+16, ph=fs+fs2+14;
+      ctx.fillStyle='rgba(16,21,28,.85)';
+      roundRect(ctx, c.x-pw/2, c.y-ph/2, pw, ph, 8); ctx.fill();
+      ctx.fillStyle=col; ctx.font='700 '+fs+'px ui-monospace,Menlo,monospace';
+      ctx.fillText(denom, c.x, c.y-fs2/2-1);
+      ctx.fillStyle='#9AA4B2'; ctx.font='500 '+fs2+'px ui-monospace,Menlo,monospace';
+      ctx.fillText(mm, c.x, c.y+fs/2-1);
     }
   }
 
   function showCoins(list){
     if(list.length===0){
       readoutMain.innerHTML='<span class="bad">!</span>No coins detected';
-      readoutSub.textContent='Spread the coins apart on a plain surface, keep them sharp and evenly lit, then Re-measure. Scale '+mmPerPx.toFixed(4)+' mm/px.';
+      readoutSub.textContent='Spread the coins apart on a plain surface, keep them sharp, then adjust the threshold or Re-measure.';
       readout.classList.add('on'); setStatus('No coins found','err'); return;
     }
-    var ds=list.map(function(c){return c.d;});
-    var lo=Math.min.apply(null,ds), hi=Math.max.apply(null,ds);
-    readoutMain.innerHTML='<span class="tick">\u2713</span>'+list.length+' coin'+(list.length>1?'s':'')+' measured';
-    readoutSub.textContent='\u00d8 '+lo.toFixed(1)+'\u2013'+hi.toFixed(1)+' mm  \u00b7  scale '+mmPerPx.toFixed(4)+' mm/px';
-    readout.classList.add('on'); setStatus(list.length+' coins measured','');
+    var cents=0, tally={};
+    for(var i=0;i<list.length;i++){ var cl=list[i].cls; if(!cl) continue; cents+=cl.cents; tally[cl.l]=(tally[cl.l]||0)+1; }
+    var euro=(cents/100).toFixed(2);
+    var order=['1c','2c','5c','10c','20c','50c','1\u20ac','2\u20ac'], parts=[];
+    for(var k=0;k<order.length;k++){ if(tally[order[k]]) parts.push(tally[order[k]]+'\u00d7'+order[k]); }
+    readoutMain.innerHTML='<span class="tick">\u2713</span>Total \u20ac'+euro;
+    readoutSub.textContent=list.length+' coins \u00b7 '+parts.join('   ');
+    readout.classList.add('on'); setStatus('\u20ac'+euro+' \u00b7 '+list.length+' coins','');
+  }
+
+  /* ---------------- Colour + denomination (Stage 4) ---------------- */
+  var DENOMS={
+    copper:[{d:16.25,cents:1,l:'1c',family:'copper'},{d:18.75,cents:2,l:'2c',family:'copper'},{d:21.25,cents:5,l:'5c',family:'copper'}],
+    gold:[{d:19.75,cents:10,l:'10c',family:'gold'},{d:22.25,cents:20,l:'20c',family:'gold'},{d:24.25,cents:50,l:'50c',family:'gold'}],
+    bimetal:[{d:23.25,cents:100,l:'1\u20ac',family:'bimetal'},{d:25.75,cents:200,l:'2\u20ac',family:'bimetal'}]
+  };
+  var S_SILVER=0.30, S_CONTRAST=0.12, COPPER_HUE_MAX=30;
+  function nearestDen(d,arr){ var best=arr[0],bd=1e9; for(var i=0;i<arr.length;i++){ var e=Math.abs(d-arr[i].d); if(e<bd){bd=e;best=arr[i];} } return best; }
+  function classifyCoin(d,st){
+    var cSil=st.center.s<S_SILVER, rSil=st.ring.s<S_SILVER;
+    if(cSil!==rSil && Math.abs(st.center.s-st.ring.s)>S_CONTRAST){
+      return cSil?DENOMS.bimetal[0]:DENOMS.bimetal[1];   // silver centre = 1 euro, silver ring = 2 euro
+    }
+    if(st.all.s<S_SILVER) return nearestDen(d,DENOMS.bimetal);
+    return nearestDen(d, st.all.h<COPPER_HUE_MAX?DENOMS.copper:DENOMS.gold);
+  }
+  function rgb2hsv(r,g,b){
+    r/=255;g/=255;b/=255;
+    var mx=Math.max(r,g,b),mn=Math.min(r,g,b),df=mx-mn,h=0;
+    if(df!==0){
+      if(mx===r) h=((g-b)/df)%6; else if(mx===g) h=(b-r)/df+2; else h=(r-g)/df+4;
+      h*=60; if(h<0)h+=360;
+    }
+    return [h, mx===0?0:df/mx, mx];
+  }
+  function sampleColorStats(img,cx,cy,r){
+    var w=img.width,h=img.height,data=img.data;
+    function acc(){ return {sin:0,cos:0,s:0,v:0,n:0}; }
+    var C=acc(),R=acc(),A=acc();
+    var rings=[[0.0,C],[0.25,C],[0.45,C],[0.65,R],[0.8,R],[0.9,R]];
+    for(var ri=0;ri<rings.length;ri++){
+      var frac=rings[ri][0], bucket=rings[ri][1], steps=(frac===0?1:12);
+      for(var a=0;a<steps;a++){
+        var ang=a/steps*Math.PI*2;
+        var px=Math.round(cx+Math.cos(ang)*frac*r), py=Math.round(cy+Math.sin(ang)*frac*r);
+        if(px<0||py<0||px>=w||py>=h) continue;
+        var idx=(py*w+px)*4, hsv=rgb2hsv(data[idx],data[idx+1],data[idx+2]);
+        if(hsv[2]>0.96 && hsv[1]<0.12) continue;   // glare
+        if(hsv[2]<0.12) continue;                   // shadow
+        var rad=hsv[0]*Math.PI/180;
+        bucket.sin+=Math.sin(rad)*hsv[1]; bucket.cos+=Math.cos(rad)*hsv[1]; bucket.s+=hsv[1]; bucket.v+=hsv[2]; bucket.n++;
+        A.sin+=Math.sin(rad)*hsv[1]; A.cos+=Math.cos(rad)*hsv[1]; A.s+=hsv[1]; A.v+=hsv[2]; A.n++;
+      }
+    }
+    function fin(o){ var n=o.n||1; var hue=Math.atan2(o.sin,o.cos)*180/Math.PI; if(hue<0)hue+=360; return {h:hue,s:o.s/n,v:o.v/n}; }
+    return {center:fin(C),ring:fin(R),all:fin(A)};
   }
 
   startBtn.addEventListener('click',startCamera);
