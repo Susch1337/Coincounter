@@ -290,6 +290,7 @@
   function showCard(c){
     var mmL=CARD_LONG/c.lng, mmS=CARD_SHORT/c.sht;
     mmPerPx=(mmL+mmS)/2;
+    try{ c.H=computeCardH(c.pts); }catch(e){ c.H=null; }
     var agreement=1-Math.abs(mmL-mmS)/mmPerPx;
     drawOverlay(c.pts);
     var good=agreement>0.94;
@@ -327,22 +328,59 @@
     cv.medianBlur(gray,gray,5);
 
     var circles=new cv.Mat();
-    var minR=Math.round((15/2)/mmPerPx);   // ~1c, with margin
-    var maxR=Math.round((27/2)/mmPerPx);   // ~2 euro, with margin
-    var minDist=Math.max(10, Math.round(minR*1.4));
-    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,35,minR,maxR);
+    var minR=Math.round((14/2)/mmPerPx);   // ~1c minus margin
+    var maxR=Math.round((28/2)/mmPerPx);   // ~2 euro plus margin
+    var minDist=Math.max(10, Math.round(minR*1.3));
+    // param2 lowered (35 -> 28) to catch low-contrast copper coins on wood
+    cv.HoughCircles(gray,circles,cv.HOUGH_GRADIENT,1,minDist,100,28,minR,maxR);
 
+    var H = lastCard && lastCard.H;
     coins=[];
     for(var i=0;i<circles.cols;i++){
       var x=circles.data32F[i*3], y=circles.data32F[i*3+1], r=circles.data32F[i*3+2];
       if(lastCard && pointInPoly(x,y,lastCard.pts)) continue;  // ignore graphics on the card
-      coins.push({x:x,y:y,r:r,d:2*r*mmPerPx});
+      var d = H ? coinDiameterMM(H,x,y,r) : 2*r*mmPerPx;       // homography -> real mm
+      coins.push({x:x,y:y,r:r,d:d});
     }
     circles.delete(); src.delete(); gray.delete();
 
     drawCoins(coins);
     showCoins(coins);
     findBtn.disabled=false; findBtn.textContent='Re-measure';
+  }
+
+  /* --- Homography: map the tilted card plane to true millimetres --- */
+  function orderPts(p){                         // -> [TL,TR,BR,BL]
+    var bySum=p.slice().sort(function(a,b){ return (a.x+a.y)-(b.x+b.y); });
+    var TL=bySum[0], BR=bySum[3];
+    var byDiff=p.slice().sort(function(a,b){ return (a.x-a.y)-(b.x-b.y); });
+    var BL=byDiff[0], TR=byDiff[3];
+    return [TL,TR,BR,BL];
+  }
+  function computeCardH(pts){
+    var o=orderPts(pts);
+    var topLen=Math.hypot(o[1].x-o[0].x, o[1].y-o[0].y);
+    var leftLen=Math.hypot(o[3].x-o[0].x, o[3].y-o[0].y);
+    var L=CARD_LONG, S=CARD_SHORT, dst;
+    if(topLen>=leftLen) dst=[0,0, L,0, L,S, 0,S];   // long side across the top
+    else                dst=[0,0, S,0, S,L, 0,L];   // short side across the top
+    var srcM=cv.matFromArray(4,1,cv.CV_32FC2,[o[0].x,o[0].y,o[1].x,o[1].y,o[2].x,o[2].y,o[3].x,o[3].y]);
+    var dstM=cv.matFromArray(4,1,cv.CV_32FC2,dst);
+    var M=cv.getPerspectiveTransform(srcM,dstM);
+    var arr=[]; for(var i=0;i<9;i++) arr.push(M.data64F[i]);
+    srcM.delete(); dstM.delete(); M.delete();
+    return arr;
+  }
+  function applyH(H,x,y){
+    var X=H[0]*x+H[1]*y+H[2], Y=H[3]*x+H[4]*y+H[5], W=H[6]*x+H[7]*y+H[8];
+    return [X/W, Y/W];
+  }
+  function coinDiameterMM(H,cx,cy,r){
+    var c=applyH(H,cx,cy);
+    var e=[[cx+r,cy],[cx-r,cy],[cx,cy+r],[cx,cy-r]];
+    var sum=0;
+    for(var i=0;i<4;i++){ var q=applyH(H,e[i][0],e[i][1]); var dx=q[0]-c[0], dy=q[1]-c[1]; sum+=Math.sqrt(dx*dx+dy*dy); }
+    return 2*sum/4;
   }
 
   function pointInPoly(x,y,poly){
